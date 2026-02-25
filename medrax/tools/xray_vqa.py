@@ -114,11 +114,21 @@ class XRayVQATool(BaseTool):
 
     @staticmethod
     def _download_and_patch_model(model_name: str, cache_dir: Optional[str] = None) -> str:
-        """Download model and patch version-check asserts for transformers compatibility."""
-        import glob
-        from huggingface_hub import snapshot_download
+        """Download model and patch version-check asserts for transformers compatibility.
 
-        local_path = snapshot_download(model_name, cache_dir=cache_dir)
+        Accepts either a HuggingFace repo ID (downloaded via snapshot_download) or a
+        local directory path (e.g. a Kaggle dataset mount), which is used directly.
+        """
+        import glob
+        import os
+
+        # If model_name is already a local directory (e.g. Kaggle dataset mount),
+        # skip snapshot_download — it only accepts HF repo IDs and would crash.
+        if os.path.isdir(model_name):
+            local_path = model_name
+        else:
+            from huggingface_hub import snapshot_download
+            local_path = snapshot_download(model_name, cache_dir=cache_dir)
 
         # Patch any version assert in the remote modeling code
         for py_file in glob.glob(str(Path(local_path) / "*.py")):
@@ -181,7 +191,7 @@ class XRayVQATool(BaseTool):
         self,
         image_paths: List[str],
         prompt: str,
-        max_new_tokens: int = 512,
+        max_new_tokens: int = 256,
         run_manager: Optional[CallbackManagerForToolRun] = None,
     ) -> Tuple[Dict[str, Any], Dict]:
         """Execute the chest X-ray analysis.
@@ -231,7 +241,7 @@ class XRayVQATool(BaseTool):
         self,
         image_paths: List[str],
         prompt: str,
-        max_new_tokens: int = 512,
+        max_new_tokens: int = 256,
         run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
     ) -> Tuple[Dict[str, Any], Dict]:
         """Async version of _run."""
