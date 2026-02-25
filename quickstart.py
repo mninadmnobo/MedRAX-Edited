@@ -14,6 +14,7 @@ logger = logging.getLogger('benchmark')
 model_name = 'chatgpt-4o-latest'  # default value
 temperature = 0.2  # default value
 log_filename = None
+CHEST_BENCH_DIR = "chestagentbench"
 
 def setup_logging(filename):
     """Setup logging configuration"""
@@ -97,7 +98,7 @@ Base your answer only on the provided images and case information."""
         for img_path in image_paths:
             if img_path and isinstance(img_path, str):
                 img_path = img_path.replace('figures/', '')
-                full_path = os.path.join("figures", img_path)
+                full_path = os.path.join(CHEST_BENCH_DIR, "figures", img_path)
                 
                 if os.path.exists(full_path):
                     base64_image = encode_image(full_path)
@@ -227,7 +228,7 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
     
     # Load the dataset from Hugging Face
-    dataset = load_dataset("json", data_files="chestagentbench/metadata.jsonl")
+    dataset = load_dataset("json", data_files=os.path.join(CHEST_BENCH_DIR, "metadata.jsonl"))
     train_dataset = dataset["train"]
 
     # Collecting ENV variables

@@ -84,7 +84,7 @@ class XRayPhraseGroundingTool(BaseTool):
         # Load model
         self.model = AutoModelForCausalLM.from_pretrained(
             model_path,
-            device_map=self.device,
+            device_map="auto" if quantization_config else str(self.device),
             cache_dir=cache_dir,
             trust_remote_code=True,
             quantization_config=quantization_config,

@@ -62,8 +62,10 @@ class ChestXRayGeneratorTool(BaseTool):
         super().__init__()
         
         self.device = torch.device(device) if device else "cuda"
-        self.model = StableDiffusionPipeline.from_pretrained(model_path, cache_dir=cache_dir)
-        self.model = self.model.to(torch.float32).to(self.device)
+        self.model = StableDiffusionPipeline.from_pretrained(
+            model_path, cache_dir=cache_dir, torch_dtype=torch.float16
+        )
+        self.model = self.model.to(self.device)
         
         self.temp_dir = Path(temp_dir if temp_dir else tempfile.mkdtemp())
         self.temp_dir.mkdir(exist_ok=True)

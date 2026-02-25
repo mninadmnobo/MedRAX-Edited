@@ -49,6 +49,8 @@ class XRayVQATool(BaseTool):
         device: Optional[str] = "cuda",
         dtype: torch.dtype = torch.bfloat16,
         cache_dir: Optional[str] = None,
+        load_in_4bit: bool = False,
+        load_in_8bit: bool = False,
         **kwargs: Any,
     ) -> None:
         """Initialize the XRayVQATool.
@@ -58,12 +60,14 @@ class XRayVQATool(BaseTool):
             device: Device to run model on (cuda/cpu)
             dtype: Data type for model weights
             cache_dir: Directory to cache downloaded models
+            load_in_4bit: Use 4-bit quantization (reduces VRAM from ~6GB to ~2GB)
+            load_in_8bit: Use 8-bit quantization
             **kwargs: Additional arguments
         """
         super().__init__(**kwargs)
 
-        # Dangerous code, but works for now
         import transformers
+        from transformers import BitsAndBytesConfig
 
         original_transformers_version = transformers.__version__
         transformers.__version__ = "4.40.0"
@@ -72,30 +76,78 @@ class XRayVQATool(BaseTool):
         self.dtype = dtype
         self.cache_dir = cache_dir
 
-        # Load tokenizer and model
+        # Download model and patch version assert in remote code for compatibility
+        local_path = self._download_and_patch_model(model_name, cache_dir)
+
+        # Setup quantization config
+        quant_kwargs = {}
+        if load_in_4bit:
+            quant_kwargs["quantization_config"] = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=dtype,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type="nf4",
+            )
+        elif load_in_8bit:
+            quant_kwargs["quantization_config"] = BitsAndBytesConfig(
+                load_in_8bit=True,
+            )
+
+        # Load tokenizer and model from (patched) local path
         self.tokenizer = AutoTokenizer.from_pretrained(
-            model_name,
+            local_path,
             trust_remote_code=True,
             cache_dir=cache_dir,
         )
         self.model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            device_map=self.device,
+            local_path,
+            device_map="auto" if quant_kwargs else str(self.device),
             trust_remote_code=True,
             cache_dir=cache_dir,
+            **quant_kwargs,
         )
-        self.model = self.model.to(dtype=self.dtype)
+        if not (load_in_4bit or load_in_8bit):
+            self.model = self.model.to(dtype=self.dtype)
         self.model.eval()
 
         transformers.__version__ = original_transformers_version
 
-    def _generate_response(self, image_paths: List[str], prompt: str, max_new_tokens: int) -> str:
+    @staticmethod
+    def _download_and_patch_model(model_name: str, cache_dir: Optional[str] = None) -> str:
+        """Download model and patch version-check asserts for transformers compatibility."""
+        import glob
+        from huggingface_hub import snapshot_download
+
+        local_path = snapshot_download(model_name, cache_dir=cache_dir)
+
+        # Patch any version assert in the remote modeling code
+        for py_file in glob.glob(str(Path(local_path) / "*.py")):
+            try:
+                with open(py_file, "r", encoding="utf-8") as f:
+                    content = f.read()
+                if 'assert transformers.__version__' in content:
+                    content = content.replace(
+                        'assert transformers.__version__ == "4.40.0"',
+                        '# assert transformers.__version__ == "4.40.0"  # Patched for compat',
+                    )
+                    with open(py_file, "w", encoding="utf-8") as f:
+                        f.write(content)
+            except Exception:
+                pass  # Read-only or inaccessible file, skip
+
+        return local_path
+
+    def _generate_response(self, image_paths: List[str], prompt: str, max_new_tokens: int,
+                            do_sample: bool = False, temperature: float = 1.0, top_p: float = 1.0) -> str:
         """Generate response using CheXagent model.
 
         Args:
             image_paths: List of paths to chest X-ray images
             prompt: Question or instruction about the images
             max_new_tokens: Maximum number of tokens to generate
+            do_sample: Whether to use sampling
+            temperature: Sampling temperature
+            top_p: Top-p sampling parameter
         Returns:
             str: Model's response
         """
@@ -114,10 +166,10 @@ class XRayVQATool(BaseTool):
         with torch.inference_mode():
             output = self.model.generate(
                 input_ids,
-                do_sample=False,
+                do_sample=do_sample,
                 num_beams=1,
-                temperature=1.0,
-                top_p=1.0,
+                temperature=temperature,
+                top_p=top_p,
                 use_cache=True,
                 max_new_tokens=max_new_tokens,
             )[0]

@@ -57,31 +57,44 @@ class ChestXRayReportGeneratorTool(BaseTool):
     impression_processor: ViTImageProcessor = None
     generation_args: Dict[str, Any] = None
 
-    def __init__(self, cache_dir: str = "/model-weights", device: Optional[str] = "cuda"):
-        """Initialize the ChestXRayReportGeneratorTool with both findings and impression models."""
+    def __init__(
+        self,
+        cache_dir: str = "/model-weights",
+        device: Optional[str] = "cuda",
+        findings_model_path: str = "IAMJB/chexpert-mimic-cxr-findings-baseline",
+        impression_model_path: str = "IAMJB/chexpert-mimic-cxr-impression-baseline",
+    ):
+        """Initialize the ChestXRayReportGeneratorTool with both findings and impression models.
+
+        Args:
+            cache_dir: HF cache directory (used when model paths are HF repo IDs).
+            device: Device to run models on.
+            findings_model_path: HF repo ID or local path to the findings model.
+            impression_model_path: HF repo ID or local path to the impression model.
+        """
         super().__init__()
         self.device = torch.device(device) if device else "cuda"
 
         # Initialize findings model
         self.findings_model = VisionEncoderDecoderModel.from_pretrained(
-            "IAMJB/chexpert-mimic-cxr-findings-baseline", cache_dir=cache_dir
+            findings_model_path, cache_dir=cache_dir, torch_dtype=torch.float16
         ).eval()
         self.findings_tokenizer = BertTokenizer.from_pretrained(
-            "IAMJB/chexpert-mimic-cxr-findings-baseline", cache_dir=cache_dir
+            findings_model_path, cache_dir=cache_dir
         )
         self.findings_processor = ViTImageProcessor.from_pretrained(
-            "IAMJB/chexpert-mimic-cxr-findings-baseline", cache_dir=cache_dir
+            findings_model_path, cache_dir=cache_dir
         )
 
         # Initialize impression model
         self.impression_model = VisionEncoderDecoderModel.from_pretrained(
-            "IAMJB/chexpert-mimic-cxr-impression-baseline", cache_dir=cache_dir
+            impression_model_path, cache_dir=cache_dir, torch_dtype=torch.float16
         ).eval()
         self.impression_tokenizer = BertTokenizer.from_pretrained(
-            "IAMJB/chexpert-mimic-cxr-impression-baseline", cache_dir=cache_dir
+            impression_model_path, cache_dir=cache_dir
         )
         self.impression_processor = ViTImageProcessor.from_pretrained(
-            "IAMJB/chexpert-mimic-cxr-impression-baseline", cache_dir=cache_dir
+            impression_model_path, cache_dir=cache_dir
         )
 
         # Move models to device
