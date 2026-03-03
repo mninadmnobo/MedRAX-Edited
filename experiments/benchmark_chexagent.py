@@ -156,7 +156,7 @@ Base your answer only on the provided images and case information."""
                 temperature=1.0,
                 top_p=1.0,
                 use_cache=True,
-                max_new_tokens=256,
+                max_new_tokens=512,
             )[0]
 
         response = tokenizer.decode(output[input_ids.size(1) : -1])

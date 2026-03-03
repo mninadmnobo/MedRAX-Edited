@@ -42,12 +42,22 @@ def load_pretrained_model(
 
     if "llava" in model_name.lower():
         # Load LLaVA model
+        tokenizer = AutoTokenizer.from_pretrained(model_path, cache_dir=cache_dir)
         if "mistral" in model_name.lower():
-            tokenizer = AutoTokenizer.from_pretrained(model_path, cache_dir=cache_dir)
             model = LlavaMistralForCausalLM.from_pretrained(
                 model_path,
                 low_cpu_mem_usage=low_cpu_mem_usage,
                 use_flash_attention_2=False,
+                cache_dir=cache_dir,
+                torch_dtype=torch_dtype,
+                **kwargs,
+            )
+        else:
+            # Fallback: treat as mistral-based LLaVA-Med (default architecture)
+            model = LlavaMistralForCausalLM.from_pretrained(
+                model_path,
+                low_cpu_mem_usage=low_cpu_mem_usage,
+                attn_implementation="eager",
                 cache_dir=cache_dir,
                 torch_dtype=torch_dtype,
                 **kwargs,

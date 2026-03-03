@@ -191,7 +191,7 @@ class XRayVQATool(BaseTool):
         self,
         image_paths: List[str],
         prompt: str,
-        max_new_tokens: int = 256,
+        max_new_tokens: int = 512,
         run_manager: Optional[CallbackManagerForToolRun] = None,
     ) -> Tuple[Dict[str, Any], Dict]:
         """Execute the chest X-ray analysis.

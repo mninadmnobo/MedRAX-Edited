@@ -56,7 +56,7 @@ if __name__ == "__main__":
     parser.add_argument("--controller-address", type=str, default="http://localhost:21001")
     parser.add_argument("--worker-address", type=str)
     parser.add_argument("--model-name", type=str, default="facebook/opt-350m")
-    parser.add_argument("--max-new-tokens", type=int, default=256)
+    parser.add_argument("--max-new-tokens", type=int, default=512)
     parser.add_argument("--message", type=str, default="Tell me a story with more than 1000 words.")
     args = parser.parse_args()
 

@@ -81,6 +81,19 @@ class XRayPhraseGroundingTool(BaseTool):
         else:
             quantization_config = None
 
+        # Fix: MAIRA-2 has no `lm_head` attribute, which crashes
+        # bitsandbytes quantization (get_keys_to_not_convert → get_output_embeddings
+        # → self.lm_head → AttributeError). Patch before loading.
+        if quantization_config is not None:
+            import transformers.integrations.bitsandbytes as _bnb_int
+            _orig_get_keys = _bnb_int.get_keys_to_not_convert
+            def _safe_get_keys(model):
+                try:
+                    return _orig_get_keys(model)
+                except AttributeError:
+                    return []
+            _bnb_int.get_keys_to_not_convert = _safe_get_keys
+
         # Load model
         self.model = AutoModelForCausalLM.from_pretrained(
             model_path,
@@ -89,6 +102,10 @@ class XRayPhraseGroundingTool(BaseTool):
             trust_remote_code=True,
             quantization_config=quantization_config,
         )
+
+        # Restore original function after loading
+        if quantization_config is not None:
+            _bnb_int.get_keys_to_not_convert = _orig_get_keys
         self.processor = AutoProcessor.from_pretrained(
             model_path, cache_dir=cache_dir, trust_remote_code=True
         )
